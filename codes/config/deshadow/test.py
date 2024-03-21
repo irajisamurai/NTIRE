@@ -73,11 +73,12 @@ lpips_fn = lpips.LPIPS(net='alex').to(device)
 
 scale = opt['degradation']['scale']
 
-for test_loader in test_loaders:
+for test_loader in test_loaders[:1]:
     test_set_name = test_loader.dataset.opt["name"]  # path opt['']
     logger.info("\nTesting [{:s}]...".format(test_set_name))
     test_start_time = time.time()
     dataset_dir = os.path.join(opt["path"]["results_root"], test_set_name)
+    dataset_dir = "/home/yokoyama/image-restoration-sde/codes/config/deshadow/official/timestep3"
     util.mkdir(dataset_dir)
 
     test_results = OrderedDict()
@@ -93,17 +94,24 @@ for test_loader in test_loaders:
         single_img_ssim = []
         single_img_psnr_y = []
         single_img_ssim_y = []
-        need_GT = False if test_loader.dataset.opt["dataroot_GT"] is None else True
+        #need_GT = False if test_loader.dataset.opt["dataroot_GT"] is None else True
+        need_GT = False
         img_path = test_data["GT_path"][0] if need_GT else test_data["LQ_path"][0]
         img_name = os.path.splitext(os.path.basename(img_path))[0]
 
         #### input dataset_LQ
         LQ, GT = test_data["LQ"], test_data["GT"]
-        noisy_state = sde.noise_state(LQ)
-
-        model.feed_data(noisy_state, LQ, GT)
+        #noisy_state = sde.noise_state(LQ)
+        ###任意のノイズをかける###
+        #T=T=opt["sde"]["T"]
+        #timesteps,noisy_state=sde.random_noise_state(LQ)
+        #noisy_state = sde.noise_state(LQ)
+        timesteps=3
+        states = sde.random_noise_state(LQ,timesteps)
+        model.feed_data(states, LQ, GT)
         tic = time.time()
-        model.test(sde, save_states=True)
+        model.test(sde,timesteps,save_states=True)
+        #model.test(sde, save_states=True)
         toc = time.time()
         test_times.append(toc - tic)
 
@@ -114,8 +122,7 @@ for test_loader in test_loaders:
         GT_ = util.tensor2img(visuals["GT"].squeeze())  # uint8
         
         suffix = opt["suffix"]
-        if suffix:
-            save_img_path = os.path.join(dataset_dir, img_name + suffix + ".png")
+        if suffix:0
         else:
             save_img_path = os.path.join(dataset_dir, img_name + ".png")
         util.save_img(output, save_img_path)

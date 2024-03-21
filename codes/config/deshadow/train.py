@@ -23,6 +23,9 @@ from data.data_sampler import DistIterSampler
 
 from data.util import bgr2ycbcr
 
+import wandb
+import random
+
 # torch.autograd.set_detect_anomaly(True)
 
 def init_dist(backend="nccl", **kwargs):
@@ -212,7 +215,7 @@ def main():
         start_epoch = 0
 
     sde = util.IRSDE(max_sigma=opt["sde"]["max_sigma"], T=opt["sde"]["T"], schedule=opt["sde"]["schedule"], eps=opt["sde"]["eps"], device=device)
-    sde.set_model(model.model)
+    sde.set_model(model.model) #denoising model
 
     scale = opt['degradation']['scale']
 
@@ -228,7 +231,7 @@ def main():
     for epoch in range(start_epoch, total_epochs + 1):
         if opt["dist"]:
             train_sampler.set_epoch(epoch)
-        for _, train_data in enumerate(train_loader):
+        for _, train_data in enumerate(train_loader[:1]):
             current_step += 1
 
             if current_step > total_iters:
@@ -238,10 +241,12 @@ def main():
             timesteps, states = sde.generate_random_states(x0=GT, mu=LQ)
 
             model.feed_data(states, LQ, GT) # xt, mu, x0
-            model.optimize_parameters(current_step, timesteps, sde)
+            loss = model.optimize_parameters(current_step, timesteps, sde) #denoising_model.pyの.optimize_parametersをいじって、lossを返すようにしています。
             model.update_learning_rate(
                 current_step, warmup_iter=opt["train"]["warmup_iter"]
             )
+            model.save(current_step)###
+            model.save_training_state(epoch, current_step)###
 
             if current_step % opt["logger"]["print_freq"] == 0:
                 logs = model.get_current_log()

@@ -191,6 +191,7 @@ class IRSDE(SDE):
 
     def noise_fn(self, x, t, **kwargs):
         # need to pre-set mu and score_model
+        print("a")
         return self.model(x, self.mu, t, **kwargs)
 
     # optimum x_{t-1}
@@ -220,9 +221,8 @@ class IRSDE(SDE):
     def forward(self, x0, T=-1, save_dir='forward_state'):
         T = self.T if T < 0 else T
         x = x0.clone()
-        for t in tqdm(range(1, T + 1)):
+        for t in tqdm(range(1, T+ 1)):
             x = self.forward_step(x, t)
-
             os.makedirs(save_dir, exist_ok=True)
             tvutils.save_image(x.data, f'{save_dir}/state_{t}.png', normalize=False)
         return x
@@ -235,7 +235,8 @@ class IRSDE(SDE):
             x = self.reverse_sde_step(x, score, t)
 
             if save_states: # only consider to save 100 images
-                interval = self.T // 100
+                #interval = self.T // 100
+                interval = 1 #上が元のコード。このままではゼロ除算でエラーになるので変更。
                 if t % interval == 0:
                     idx = t // interval
                     os.makedirs(save_dir, exist_ok=True)
@@ -317,6 +318,15 @@ class IRSDE(SDE):
         noisy_states = noises * noise_level + state_mean
 
         return timesteps, noisy_states.to(torch.float32)
+    ###任意のノイズ
+    def random_noise_state(self,tensor,timesteps):
+        batch = tensor.shape[0]
+        #timesteps = torch.randint(1, self.T + 1, (batch, 1, 1, 1)).long()
+        #print(timesteps)
+        tensor = tensor.to(self.device)
+        noise_level = self.sigma_bar(timesteps)
+        print(noise_level)
+        return tensor+torch.randn_like(tensor)*noise_level
 
     def noise_state(self, tensor):
         return tensor + torch.randn_like(tensor) * self.max_sigma
@@ -441,10 +451,10 @@ class DenoisingSDE(SDE):
     def get_real_score(self, xt, x0, t):
         return -(xt - self.mu_bar(x0, t)) / self.sigma_bar(t)**2
 
-    def reverse_sde(self, xt, x0=None, T=-1, save_states=False, save_dir='sde_state'):
+    def reverse_sde(self, xt, x0=None, T=-1,timesteps=100,save_states=False, save_dir='sde_state'):
         T = self.T if T < 0 else T
         x = xt.clone()
-        for t in tqdm(reversed(range(1, T + 1))):
+        for t in tqdm(reversed(range(1, timesteps + 1))):
             if x0 is not None:
                 score = self.get_real_score(x, x0, t)
             else:
